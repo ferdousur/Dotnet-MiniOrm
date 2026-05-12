@@ -3,9 +3,7 @@ using MiniOrm.Data;
 using MiniOrm.Models;
 
 // connection string
-var connectionString =
-    Environment.GetEnvironmentVariable("MINIORM_CONNECTION_STRING")
-    ?? "Host=localhost:5433;Database=miniorm_db;Username=postgres;Password=password";
+var connectionString = "Host=localhost:5433;Database=miniorm_db;Username=postgres;Password=password";
 
 
 // DI container

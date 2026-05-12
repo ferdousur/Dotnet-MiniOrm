@@ -1,142 +1,164 @@
-using MiniOrm.Data;
+
 using Npgsql;
 
-namespace MiniOrm.Data;
+namespace MiniOrm.Data; 
 
-public class DbSet<T> where T : new()
+public class DbSet<T> where T: new()
 {
-    private readonly NpgsqlConnection _conn;
-    private readonly string _table;
+    private readonly NpgsqlConnection _conn; 
+    private readonly string _tableName; 
 
     public DbSet(DbContext context, string tableName)
     {
-        _conn = context.connection();
-        _table = tableName;
+        _conn=context.connection(); 
+        _tableName=tableName; 
     }
 
-    // insert record without Id (handled by DB identity)
     public void Add(T entity)
     {
-        var props = typeof(T).GetProperties()
-            .Where(p => p.Name.ToLower() != "id")
-            .ToList();
+        // Shob property niye aschi, kintu "Id" bad diye (karon DB auto-generate korbe)
+        var properties=typeof(T).GetProperties().Where(p=> p.Name.ToLower() != "id").ToList();
 
-        var columns = string.Join(", ",
-            props.Select(p => p.Name.ToLower()));
+         // Column names: "name, email, age"
+        var columns= string.Join(", ", properties.Select(p=> p.Name.ToLower())); 
 
-        var values = string.Join(", ",
-            props.Select(p => "@" + p.Name.ToLower()));
+        // Parameter names: "@name, @email, @age"
+        var values= string.Join(", ", properties.Select(p=> "@"+ p.Name.ToLower())); 
 
-        var sql = $"INSERT INTO {_table} ({columns}) VALUES ({values})";
+        //sql query
+        var sql=$"INSERT INTO {_tableName} ({columns})  VALUES  ({values})"; 
 
-        using var cmd = new NpgsqlCommand(sql, _conn);
+        // Command create kore parameter set kora
+        using var cmd= new NpgsqlCommand(sql, _conn); 
 
-        foreach (var prop in props)
+        foreach(var prop in properties)
         {
-            var value = prop.GetValue(entity);
-
-            cmd.Parameters.AddWithValue(
-                "@" + prop.Name.ToLower(),
-                value ?? DBNull.Value);
+            // Object theke value niye aschi
+            var value= prop.GetValue(entity);
+            cmd.Parameters.AddWithValue("@" + prop.Name.ToLower(), value ?? DBNull.Value);  
         }
 
         cmd.ExecuteNonQuery();
-
-        Console.WriteLine($"Added to {_table}");
+        Console.WriteLine($"Added to {_tableName}");
     }
 
-    // get all records from table
-    public List<T> GetAll()
+
+    public  List<T> GetAll()
     {
-        var sql = $"SELECT * FROM {_table}";
+        // SELECT * FROM users
+        var sql=$"SELECT * FROM  {_tableName}"; 
+        using var cmd= new NpgsqlCommand(sql, _conn); 
+        // Data read korar jonno reader
+        using var reader= cmd.ExecuteReader();
 
-        using var cmd = new NpgsqlCommand(sql, _conn);
-        using var reader = cmd.ExecuteReader();
+        var results= new List<T>(); 
 
-        var results = new List<T>();
-
-        while (reader.Read())
+        // Prottek row er jonno loop
+        while(reader.Read())
         {
-            var obj = new T();
+            // New object create (like new User())
+            var obj = new T(); 
 
-            foreach (var prop in typeof(T).GetProperties())
+            // Prottek property te database er value assign kora
+            foreach( var prop in typeof(T).GetProperties())
             {
-                var value = reader[prop.Name.ToLower()];
-
-                if (value != DBNull.Value)
-                    prop.SetValue(obj, value);
+                // Column name dhore value niye aschi
+                var value= reader[prop.Name.ToLower()]; 
+                if(value != DBNull.Value)
+                {
+                     // Object er property te value set
+                    prop.SetValue(obj, value); 
+                }
             }
-
-            results.Add(obj);
+            results.Add(obj); 
         }
-
-        return results;
+        return results; 
     }
 
-    // find record by id
     public T? Find(int id)
     {
-        var sql = $"SELECT * FROM {_table} WHERE id = @id";
+        var sql = $"SELECT * FROM {_tableName} WHERE id = @id";  
 
         using var cmd = new NpgsqlCommand(sql, _conn);
-        cmd.Parameters.AddWithValue("@id", id);
+        cmd.Parameters.AddWithValue("@id", id);  
 
         using var reader = cmd.ExecuteReader();
 
-        if (!reader.Read())
-            return default;
+        // Data na paile null return
+        if (!reader.Read()) return default;  
 
         var obj = new T();
 
         foreach (var prop in typeof(T).GetProperties())
         {
             var value = reader[prop.Name.ToLower()];
-
             if (value != DBNull.Value)
                 prop.SetValue(obj, value);
         }
 
-        return obj;
+        // Single object return (like User)
+        return obj;  
     }
 
-    // update record by id
     public void Update(T entity)
     {
+        // Id bad diye baki shob property
         var props = typeof(T).GetProperties()
             .Where(p => p.Name != "Id")
             .ToList();
 
-        var setPart = string.Join(", ",
-            props.Select(p => $"{p.Name.ToLower()} = @{p.Name}"));
+        // SET part: "name = @Name, email = @Email"
+        var setPart = string.Join(", ", props.Select(p => $"{p.Name.ToLower()} = @{p.Name}"));
 
-        var sql = $"UPDATE {_table} SET {setPart} WHERE id = @Id";
+        // Full SQL: UPDATE users SET name = @Name, email = @Email WHERE id = @Id
+        var sql = $"UPDATE {_tableName} SET {setPart} WHERE id = @Id";
 
         using var cmd = new NpgsqlCommand(sql, _conn);
 
+        // Baki property gular parameter set
         foreach (var prop in props)
         {
             var value = prop.GetValue(entity);
             cmd.Parameters.AddWithValue("@" + prop.Name, value ?? DBNull.Value);
         }
 
+        // Id parameter alada vabe set (karon WHERE clause e lage)
         var idValue = typeof(T).GetProperty("Id")!.GetValue(entity)!;
         cmd.Parameters.AddWithValue("@Id", idValue);
 
         cmd.ExecuteNonQuery();
-
-        Console.WriteLine($"Updated in {_table}");
+        Console.WriteLine($"Updated in {_tableName}");
     }
 
-    // delete record by id
+
     public void Delete(int id)
     {
-        var sql = $"DELETE FROM {_table} WHERE id = @id";
+        var sql = $"DELETE FROM {_tableName} WHERE id = @id";  
 
         using var cmd = new NpgsqlCommand(sql, _conn);
         cmd.Parameters.AddWithValue("@id", id);
 
-        cmd.ExecuteNonQuery();
-
-        Console.WriteLine($"Deleted id={id} from {_table}");
+        // Execute kore delete
+        cmd.ExecuteNonQuery();  
+        Console.WriteLine($"Deleted id={id} from {_tableName}");
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

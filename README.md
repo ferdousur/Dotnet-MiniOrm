@@ -12,6 +12,7 @@ A lightweight, educational ORM built with .NET 10.0 & PostgreSQL.
 
 ##  Project Structure
 
+```text
 FinalAssignmentMiniOrm/
 ├── MiniOrm/                  # Core ORM Library
 │   ├── Attributes/           # Mapping attributes
